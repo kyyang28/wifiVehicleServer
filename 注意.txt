@@ -1,0 +1,3 @@
+
+wifi_vehicle_server这个程序要用 arm-linux-gcc 编译
+wifi_vehicle_client用 gcc 编译
