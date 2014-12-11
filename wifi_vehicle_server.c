@@ -24,6 +24,7 @@
 #define SERVER_PORT                             8888
 #define BACKLOG                                 10
 
+#define LEDS_DEV                                "/dev/mars_leds"
 #define MOTOR_DEV                               "/dev/mars_motor"
 #define DS18B20_DEV                             "/dev/mars_ds18b20"
 #define ULTRA_DEV                               "/dev/mars_ultrasonic"
@@ -42,6 +43,8 @@
 #define REQ_CMD_TYPE_SPEED                      2
 #define REQ_CMD_TYPE_TEMPERATURE                3
 #define REQ_CMD_TYPE_CAMSERVO_OPERATION         4
+#define REQ_CMD_TYPE_LEDS_ONOFF_OPERATION       5
+#define REQ_CMD_TYPE_LEDS_PWM_OPERATION         6
 
 /* Vehicle movements related */
 #define WIFI_VEHICLE_MOVE_FORWARD               0
@@ -51,10 +54,6 @@
 #define WIFI_VEHICLE_MOVE_LEFT                  3
 #define WIFI_VEHICLE_MOVE_RIGHT                 4
 #define WIFI_VEHICLE_STOP                       5
-
-/* Buzzer related */
-#define WIFI_VEHICLE_BUZZER_ON                  6
-#define WIFI_VEHICLE_BUZZER_OFF                 7
 
 /* Camera servo related */
 #define MARS_PWM_IOCTL_SET_DUTYRATIO_OPSCODE	1
@@ -86,6 +85,7 @@ struct reqMsg {
     float temp;
 };
 
+static int iLedsFd;
 static int iMotorBuzzerFd;
 static int iDs18b20Fd;
 static int iBuzzerFd;
@@ -277,7 +277,16 @@ static void set_mars_pwm_camServo_vertical_initState(unsigned int opsCode, unsig
 }
 
 static int open_mars_wifi_vehicle_hw_dev(void)
-{
+{    
+    /* Open leds device */
+    iLedsFd = open(LEDS_DEV, O_RDWR);
+    if (iLedsFd < 0) {
+        printf("[USER]Error: Open %s is failed!\n", LEDS_DEV);
+        return -1;
+    }else {
+        printf("[USER]Open %s successful!\n", LEDS_DEV);
+    }
+
     /* Open motor device */
     iMotorBuzzerFd = open(MOTOR_DEV, O_RDWR);
     if (iMotorBuzzerFd < 0) {
@@ -450,6 +459,11 @@ int main(int argc, char *argv[])
                             else if (request.camServoType == MARS_PWM_CAMSERVO_TYPE_VERTICAL)
                                 set_mars_pwm_camServo_vertical_ops(request.camServoOpsCode, request.camServoVerticalDutyNS);
                             break;
+
+                        case REQ_CMD_TYPE_LEDS_ONOFF_OPERATION:
+                            ioctl(iLedsFd, 0, request.dir);         // 0 = cmd, the second argument of the ioctl
+                            //printf("Get Msg From Client %d: REQ_CMD_TYPE_LEDS_ONOFF_OPERATION = %d\n", iClientNum, request.dir);
+                            break;
                             
                         default:
                             printf("No such request type!\n");
@@ -466,6 +480,4 @@ int main(int argc, char *argv[])
 	close(iSocketServer);
 	return 0;
 }
-
-
 
