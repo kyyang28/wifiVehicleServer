@@ -461,6 +461,7 @@ int main(int argc, char *argv[])
                             break;
 
                         case REQ_CMD_TYPE_LEDS_ONOFF_OPERATION:
+                            //printf("@@@@@@@@@@@@@@@@@@@@@@@@@@ request.dir = %d\n", request.dir);
                             ioctl(iLedsFd, 0, request.dir);         // 0 = cmd, the second argument of the ioctl
                             //printf("Get Msg From Client %d: REQ_CMD_TYPE_LEDS_ONOFF_OPERATION = %d\n", iClientNum, request.dir);
                             break;
