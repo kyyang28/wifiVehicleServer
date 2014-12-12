@@ -81,7 +81,8 @@ struct reqMsg {
     unsigned int  camServoOpsCode;
     unsigned int  camServoHorizontalDutyNS;
     unsigned int  camServoVerticalDutyNS;
-    unsigned char speed;        /* 0 ~ 100 */
+    unsigned char camLedsBrightness;            /* 0 ~ 100 */
+    unsigned char motorSpeed;                   /* 0 ~ 100 */
     float temp;
 };
 
@@ -93,7 +94,7 @@ static int iUltraFd;
 static int iCamServoHorizontalFd;
 static int iCamServoVerticalFd;
 
-static void *dutyCycleThread(void *arg)
+static void *motorSpeedDutyCycleThread(void *arg)
 {
     int dutyCycle;                  // 0 ~ 100
     char val;
@@ -114,6 +115,30 @@ static void *dutyCycleThread(void *arg)
 
     return arg;
 }
+
+#if 0
+static void *camLedsBrightnessDutyCycleThread(void *arg)
+{
+    int dutyCycle;                  // 0 ~ 100
+    char val;
+
+    /* Change the usleep value to manually control the duty cycle */
+    while (1) {
+        dutyCycle = *(int *)arg;
+
+        val = 1;
+        write(iLedsFd, &val, 1);
+
+        usleep(dutyCycle*1000);
+
+        val = 0;
+        write(iLedsFd, &val, 1);
+        usleep(100*1000 - dutyCycle*1000);
+    }
+
+    return arg;
+}
+#endif
 
 static void ultraMonitorThread(void)
 {
@@ -356,9 +381,11 @@ int main(int argc, char *argv[])
 	int iRecvLen;
 	int iClientNum = -1;
     struct reqMsg request;
-    pthread_t dutyCycleID;
+    pthread_t motorSpeedDutyCycleID;
+    pthread_t camLedsBrightnessDutyCycleID;
     pthread_t ultraID;
-    int dutyCycle = 99;                  // 0 ~ 100
+    int motorSpeedDutyCycle = 99;                   // 0 ~ 99
+    int camLedsBrightnessDutyCycle = 0;             // 0 ~ 99
 
     iRet = open_mars_wifi_vehicle_hw_dev();
     if (iRet == -1) {
@@ -407,8 +434,11 @@ int main(int argc, char *argv[])
 			printf("Get connect from client %d : %s\n",  iClientNum, inet_ntoa(tSocketClientAddr.sin_addr));
 			if (!fork()) {
 
-                /* create dutyCycle pthread */
-                pthread_create(&dutyCycleID, NULL, &dutyCycleThread, &dutyCycle);
+                /* create motorSpeedDutyCycle pthread */
+                pthread_create(&motorSpeedDutyCycleID, NULL, &motorSpeedDutyCycleThread, &motorSpeedDutyCycle);
+
+                /* create camLedsBrightnessDutyCycle pthread */
+                //pthread_create(&camLedsBrightnessDutyCycleID, NULL, &camLedsBrightnessDutyCycleThread, &camLedsBrightnessDutyCycle);
 
                 /* create ultrasonic monitoring pthread */
                 pthread_create(&ultraID, NULL, (void *)ultraMonitorThread, NULL);
@@ -435,8 +465,8 @@ int main(int argc, char *argv[])
                             break;
 
                         case REQ_CMD_TYPE_SPEED:
-                            dutyCycle = request.speed;          // request.speed = duty cycle
-                            //printf("Get Msg From Client %d: REQ_CMD_TYPE_SPEED = %d\n", iClientNum, request.speed);
+                            motorSpeedDutyCycle = request.motorSpeed;          // request.motorSpeed = duty cycle
+                            //printf("Get Msg From Client %d: REQ_CMD_TYPE_SPEED = %d\n", iClientNum, request.motorSpeed);
                             break;
 
                         case REQ_CMD_TYPE_TEMPERATURE:
@@ -465,6 +495,11 @@ int main(int argc, char *argv[])
                             ioctl(iLedsFd, 0, request.dir);         // 0 = cmd, the second argument of the ioctl
                             //printf("Get Msg From Client %d: REQ_CMD_TYPE_LEDS_ONOFF_OPERATION = %d\n", iClientNum, request.dir);
                             break;
+
+                        case REQ_CMD_TYPE_LEDS_PWM_OPERATION:
+                            camLedsBrightnessDutyCycle = request.camLedsBrightness;          // request.camLedsBrightness = duty cycle
+                            //printf("Get Msg From Client %d: REQ_CMD_TYPE_CAMLEDS_BRIGHTNESS = %d\n", iClientNum, request.camLedsBrightness);                            
+                            break;
                             
                         default:
                             printf("No such request type!\n");
@@ -476,7 +511,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-    pthread_join(dutyCycleID, NULL);
+    pthread_join(motorSpeedDutyCycleID, NULL);
+    //pthread_join(camLedsBrightnessDutyCycleID, NULL);
     pthread_join(ultraID, NULL);
 	close(iSocketServer);
 	return 0;
